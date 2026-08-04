@@ -522,6 +522,28 @@ def post_discord(embed: dict, webhook_url: str) -> None:
         print(f"Discord post failed: {exc}", file=sys.stderr)
 
 
+# ─── JSON STATUS FILE (read by dashboard.html) ─────────────────────────────────
+
+def write_status_json(checks: List[Check]) -> None:
+    """Write logs/health_status.json so dashboard.html can render the health panel."""
+    LOG_DIR.mkdir(exist_ok=True)
+    payload = {
+        "ts":     datetime.now(ET).isoformat(),
+        "worst":  worst_level(checks),
+        "checks": [
+            {
+                "level":    c.level,
+                "category": c.category,
+                "name":     c.name,
+                "detail":   c.detail,
+                "fix":      c.fix,
+            }
+            for c in checks
+        ],
+    }
+    (LOG_DIR / "health_status.json").write_text(json.dumps(payload, indent=2))
+
+
 # ─── STARTUP VALIDATION (called by other processes) ────────────────────────────
 
 def startup_validate(process_name: str = "QVIX") -> bool:
@@ -537,7 +559,9 @@ def startup_validate(process_name: str = "QVIX") -> bool:
     """
     import logging
 
-    checks = check_credentials() + check_config_files()
+    checks = check_credentials() + check_config_files() + check_process_state()
+    write_status_json(checks)
+
     has_crit  = any(c.level == "crit"  for c in checks)
     has_error = any(c.level in ("crit", "error") for c in checks)
 
@@ -590,6 +614,7 @@ def main() -> None:
     args = parser.parse_args()
 
     checks = run_all_checks() if not args.no_api else run_startup_checks()
+    write_status_json(checks)
 
     if not args.quiet:
         print(format_terminal(checks))

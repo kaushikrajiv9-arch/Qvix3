@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>QVIX Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:        #0d1117;
+  --card:      #161b22;
+  --card2:     #1c2128;
+  --border:    #30363d;
+  --text:      #e6edf3;
+  --muted:     #8b949e;
+  --green:     #3fb950;
+  --red:       #f85149;
+  --yellow:    #d29922;
+  --blue:      #58a6ff;
+  --purple:    #bc8cff;
+  --orange:    #db6d28;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  min-height: 100vh;
+}
+a { color: var(--blue); text-decoration: none; }
+
+/* ── Layout ──────────────────────────────────────────────────────── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  background: var(--card); position: sticky; top: 0; z-index: 10;
+}
+.logo { font-size: 16px; font-weight: 600; letter-spacing: .5px; }
+.logo span { color: var(--blue); }
+#status { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+#dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.main { padding: 16px 20px; max-width: 1400px; margin: 0 auto; }
+
+/* ── Cards ───────────────────────────────────────────────────────── */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px;
+}
+.kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+.kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
+.kpi-value { font-size: 28px; font-weight: 700; line-height: 1; }
+.kpi-sub   { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.green { color: var(--green); }
+.red   { color: var(--red);   }
+.muted { color: var(--muted); }
+.yellow { color: var(--yellow); }
+
+/* ── Two-column row ──────────────────────────────────────────────── */
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+@media (max-width: 900px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .row2, .row3 { grid-template-columns: 1fr; }
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 6px 10px; font-size: 11px; color: var(--muted);
+     text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--card2); }
+.mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+.badge {
+  display: inline-block; padding: 2px 7px; border-radius: 4px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+}
+.badge-win     { background: rgba(63,185,80,.15); color: var(--green); }
+.badge-loss    { background: rgba(248,81,73,.15);  color: var(--red);   }
+.badge-open    { background: rgba(88,166,255,.15); color: var(--blue);  }
+.badge-expired { background: rgba(139,148,158,.15); color: var(--muted); }
+.badge-stock   { background: rgba(88,166,255,.12); color: var(--blue);  }
+.badge-crypto  { background: rgba(188,140,255,.12); color: var(--purple); }
+.badge-0dte    { background: rgba(210,153,34,.12);  color: var(--yellow); }
+
+/* ── Filters ─────────────────────────────────────────────────────── */
+.filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+input[type=text], select, input[type=date] {
+  background: var(--card2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 5px 10px; font-size: 13px; outline: none;
+}
+input[type=text]:focus, select:focus, input[type=date]:focus {
+  border-color: var(--blue);
+}
+.section-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  margin-bottom: 10px; letter-spacing: .3px;
+}
+
+/* ── Attribution pills ────────────────────────────────────────────── */
+.attr-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
+@media (max-width: 1000px) { .attr-grid { grid-template-columns: 1fr 1fr; } }
+.attr-card { background: var(--card2); border: 1px solid var(--border);
+             border-radius: 8px; padding: 10px 12px; }
+.attr-name  { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.attr-count { font-size: 20px; font-weight: 700; }
+.attr-sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ── Chart containers ────────────────────────────────────────────── */
+.chart-wrap { position: relative; height: 200px; }
+
+/* ── Radar panel ─────────────────────────────────────────────────── */
+.rv-2x { color: var(--yellow); }
+.rv-3x { color: var(--orange); }
+.rv-5x { color: var(--red);    }
+tr.radar-hot td { background: rgba(248,81,73,.04); }
+
+/* ── Health panel ────────────────────────────────────────────────── */
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+@media (max-width: 900px) { .health-grid { grid-template-columns: 1fr 1fr; } }
+.health-col { display: flex; flex-direction: column; gap: 5px; }
+.health-col-title {
+  font-size: 10px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .7px;
+  padding-bottom: 5px; border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.health-row {
+  display: flex; align-items: flex-start; gap: 7px; font-size: 12px;
+}
+.health-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 3px;
+}
+.hd-ok    { background: var(--green);  }
+.hd-warn  { background: var(--yellow); }
+.hd-error { background: var(--orange); }
+.hd-crit  { background: var(--red);    }
+.health-name   { font-weight: 600; white-space: nowrap; }
+.health-detail { color: var(--muted); font-size: 11px; margin-top: 1px; line-height: 1.35; }
+.health-fix    { color: var(--blue); font-size: 10px; font-family: 'SF Mono','Fira Code',monospace;
+                 margin-top: 2px; word-break: break-all; }
+.health-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; border-radius: 4px; font-size: 11px; font-weight: 600;
+}
+.hbadge-ok    { background: rgba(63,185,80,.15);  color: var(--green);  }
+.hbadge-warn  { background: rgba(210,153,34,.15); color: var(--yellow); }
+.hbadge-error { background: rgba(219,109,40,.15); color: var(--orange); }
+.hbadge-crit  { background: rgba(248,81,73,.15);  color: var(--red);    }
+.health-stale { color: var(--yellow); font-size: 11px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">QVIX <span>Dashboard</span></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span id="bdb-badge" style="display:none"></span>
+    <div id="status"><div id="dot"></div><span id="status-text">Loading…</span></div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- KPI row -->
+  <div class="kpi-row" id="kpi-row">
+    <div class="card"><div class="kpi-label">Total Signals</div><div class="kpi-value" id="kpi-total">—</div><div class="kpi-sub" id="kpi-total-sub"></div></div>
+    <div class="card"><div class="kpi-label">Win Rate</div><div class="kpi-value" id="kpi-wr">—</div><div class="kpi-sub" id="kpi-wr-sub"></div></div>
+    <div class="card"><div class="kpi-label">Net P&L</div><div class="kpi-value" id="kpi-pnl">—</div><div class="kpi-sub" id="kpi-pnl-sub"></div></div>
+    <div class="card"><div class="kpi-label">Open Signals</div><div class="kpi-value" id="kpi-open">—</div><div class="kpi-sub" id="kpi-open-sub"></div></div>
+  </div>
+
+  <!-- System Health Panel -->
+  <div class="card" id="health-card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+      <div class="section-title" style="margin-bottom:0">System Health</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="health-stale" class="health-stale" style="display:none">⚠ stale</span>
+        <span id="health-badge" class="health-badge hbadge-ok">—</span>
+        <span id="health-ts" style="font-size:11px;color:var(--muted)">—</span>
+      </div>
+    </div>
+    <div class="health-grid" id="health-grid">
+      <div style="color:var(--muted);font-size:12px;grid-column:1/-1;padding:12px 0">Loading health data…</div>
+    </div>
+  </div>
+
+  <!-- Unusual Activity Radar -->
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="section-title">🔍 Unusual Activity Radar
+        <span class="muted" style="font-weight:400;font-size:11px">— discovery only · not a trade signal</span>
+      </div>
+      <div id="radar-updated" style="font-size:11px;color:var(--muted)">—</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="radar-table">
+        <thead><tr>
+          <th>Ticker</th>
+          <th style="text-align:right">Move</th>
+          <th style="text-align:right">Rel Vol</th>
+          <th style="text-align:right">IVR</th>
+          <th style="text-align:right">Net Premium</th>
+          <th>Bias</th>
+        </tr></thead>
+        <tbody id="radar-tbody">
+          <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Breakdown + Charts -->
+  <div class="row2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="section-title">By Strategy <span class="muted" style="font-weight:400;font-size:11px">— expired counted as loss</span></div>
+      <table id="strat-table">
+        <thead><tr>
+          <th>Strategy</th><th style="text-align:right">Fired</th>
+          <th style="text-align:right">W</th><th style="text-align:right">L</th>
+          <th style="text-align:right">WR</th><th style="text-align:right">Net P&L</th>
+        </tr></thead>
+        <tbody id="strat-tbody"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="section-title">Cumulative P&L (%)</div>
+      <div class="chart-wrap"><canvas id="chart-pnl"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="section-title">Win Rate by Week (%)</div>
+      <div class="chart-wrap"><canvas id="chart-wr"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Signals Fired by Day</div>
+      <div class="chart-wrap"><canvas id="chart-daily"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Fix attribution -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-title">Fix Attribution <span class="muted" style="font-weight:400;font-size:11px">— since 2026-07-08 (today's four fixes)</span></div>
+    <div class="attr-grid" id="attr-grid"></div>
+  </div>
+
+  <!-- Signal history -->
+  <div class="card">
+    <div class="section-title">Signal History</div>
+    <div class="filters">
+      <input type="text"  id="f-ticker"  placeholder="Ticker…" style="width:110px">
+      <select id="f-class">
+        <option value="">All classes</option>
+        <option value="stock_option">Stocks</option>
+        <option value="crypto_spot">Crypto</option>
+        <option value="0dte_option">0DTE</option>
+      </select>
+      <select id="f-status">
+        <option value="">All status</option>
+        <option value="open">Open</option>
+        <option value="win">Win</option>
+        <option value="loss">Loss</option>
+        <option value="expired">Expired</option>
+      </select>
+      <input type="date" id="f-from" title="From date">
+      <input type="date" id="f-to"   title="To date">
+      <select id="f-conf">
+        <option value="">All confirmation</option>
+        <option value="confirmed">TradeOdds confirmed</option>
+        <option value="thin">Thin-sample (new)</option>
+        <option value="outage">Outage fallback</option>
+        <option value="none">No TradeOdds</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="hist-table">
+        <thead><tr>
+          <th>Date / Time</th><th>Ticker</th><th>Signal</th><th>Class</th>
+          <th style="text-align:right">Score</th><th>Status</th>
+          <th style="text-align:right">Entry $</th>
+          <th style="text-align:right">Exit $</th>
+          <th style="text-align:right">P&L %</th>
+          <th>Confirmation</th><th>Synthesis</th>
+        </tr></thead>
+        <tbody id="hist-tbody"></tbody>
+      </table>
+    </div>
+    <div id="hist-count" class="muted" style="margin-top:8px;font-size:12px"></div>
+  </div>
+
+</div><!-- .main -->
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const FIX_DATE     = '2026-07-08';
+const REFRESH_SECS = 60;
+
+// ── Deduplication ─────────────────────────────────────────────────────────────
+// The raw signal_log.json can contain multiple entries for the same trade when
+// the scanner re-evaluates a ticker that already fired (e.g. BDB cooldown bug
+// pre-2026-07-13). Rules:
+//   • stock_option / crypto_spot: one unique signal per (ticker, signal, date)
+//   • 0dte_option: keep all — multiple 0DTE trades per day on the same ticker
+//     are genuinely separate entries with distinct outcomes.
+// When duplicates exist, prefer the record that has outcome data (win/loss).
+function deduplicateRecords(records) {
+  const dedupTypes = new Set(['stock_option', 'crypto_spot']);
+  const seen   = {};   // key → index in result
+  const result = [];
+  for (const r of records) {
+    const type = r.signal_type || 'stock_option';
+    if (!dedupTypes.has(type)) { result.push(r); continue; }
+    const date = (r.timestamp || '').slice(0, 10);
+    const key  = `${r.ticker}|${r.signal || ''}|${type}|${date}`;
+    const hasOutcome = x => x.outcome === 'win' || x.outcome === 'loss' || x.outcome === 'expired';
+    if (!(key in seen)) {
+      seen[key] = result.length;
+      result.push(r);
+    } else if (!hasOutcome(result[seen[key]]) && hasOutcome(r)) {
+      result[seen[key]] = r;   // replace open stub with resolved record
+    }
+  }
+  return result;
+}
+
+// ── Chart instances (created once, updated on refresh) ───────────────────────
+let chartPnl, chartWr, chartDaily;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmt = (n, dp=1) => n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(dp) + '%';
+const fmtPct = n => n == null ? '—' : n.toFixed(1) + '%';
+const colorFor = v => v == null ? '' : (v >= 0 ? 'var(--green)' : 'var(--red)');
+
+function classLabel(t) {
+  if (t === 'crypto_spot') return 'Crypto';
+  if (t === '0dte_option') return '0DTE';
+  return 'Stock';
+}
+function classBadge(t) {
+  if (t === 'crypto_spot') return '<span class="badge badge-crypto">Crypto</span>';
+  if (t === '0dte_option') return '<span class="badge badge-0dte">0DTE</span>';
+  return '<span class="badge badge-stock">Stock</span>';
+}
+function statusBadge(r) {
+  const o = r.outcome || r.status;
+  if (o === 'win')     return '<span class="badge badge-win">Win</span>';
+  if (o === 'loss')    return '<span class="badge badge-loss">Loss</span>';
+  if (o === 'expired') return '<span class="badge badge-expired">Expired</span>';
+  return '<span class="badge badge-open">Open</span>';
+}
+function confLabel(r) {
+  if (r.tradeodds_confirmed === true  && !r.low_sample_fallback) return '✅ Confirmed';
+  if (r.low_sample_fallback)                                      return '⚠️ Thin-sample';
+  if (r.tradeodds_confirmed === false && !r.low_sample_fallback)  return '🔌 Outage fb';
+  return '—';
+}
+function isoDate(s) { return s ? s.slice(0, 10) : null; }
+function tsLabel(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric'})
+       + ' ' + d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:true});
+}
+function weekLabel(s) {
+  const d = new Date(s);
+  const mon = new Date(d); mon.setDate(d.getDate() - d.getDay() + 1);
+  return mon.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+// ── Core render ──────────────────────────────────────────────────────────────
+// "resolved" = win + loss + expired (expired counts as a loss)
+function isLoss(r)    { return r.outcome === 'loss' || r.outcome === 'expired'; }
+function isWin(r)     { return r.outcome === 'win'; }
+function isResolved(r){ return isWin(r) || isLoss(r); }
+
+function render(records) {
+  const rawCount = records.length;
+  records = deduplicateRecords(records);
+
+  const resolved = records.filter(isResolved);
+  const wins     = resolved.filter(isWin);
+  const open     = records.filter(r => r.status === 'open');
+  // P&L: wins/losses with data; expired count as -100 each
+  const pnls = resolved.map(r => r.pnl != null ? r.pnl : (isLoss(r) ? -100 : null)).filter(v => v != null);
+  const netPnl  = pnls.reduce((a, b) => a + b, 0);
+  const winRate = resolved.length ? wins.length / resolved.length * 100 : null;
+
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+  $('kpi-total').textContent = records.length;
+  const dupeNote = rawCount > records.length ? ` · ${rawCount - records.length} dupes removed` : '';
+  $('kpi-total-sub').textContent = `${resolved.length} resolved · ${open.length} open${dupeNote}`;
+  $('kpi-wr').textContent = winRate != null ? fmtPct(winRate) : '—';
+  $('kpi-wr').style.color = winRate == null ? '' : winRate >= 50 ? 'var(--green)' : 'var(--red)';
+  $('kpi-wr-sub').textContent = `${wins.length}W / ${resolved.length - wins.length}L (incl. expired)`;
+  $('kpi-pnl').textContent = pnls.length ? fmt(netPnl) : '—';
+  $('kpi-pnl').style.color = pnls.length ? colorFor(netPnl) : '';
+  $('kpi-pnl-sub').textContent = `expired = −100% each`;
+  $('kpi-open').textContent = open.length;
+  $('kpi-open-sub').textContent = open.map(r => r.ticker).filter((v,i,a) => a.indexOf(v)===i).join(' · ') || '—';
+
+  // ── Strategy breakdown table ──────────────────────────────────────────────
+  const strategies = [
+    {key: '0DTE SCALP',        label: '0DTE SCALP',        badge: 'badge-0dte'},
+    {key: 'BIG DROP BOUNCE',   label: 'Big Drop Bounce',   badge: 'badge-stock'},
+    {key: 'MOMENTUM BREAKOUT', label: 'Momentum Breakout', badge: 'badge-stock'},
+    {key: 'BEARISH PUT',       label: 'Bearish Put',       badge: 'badge-stock'},
+  ];
+  let stratHtml = '';
+  let stTot=0, stW=0, stL=0, stPnl=0;
+  for (const {key, label, badge} of strategies) {
+    const sigs = records.filter(r => r.signal === key);
+    const res  = sigs.filter(isResolved);
+    const w    = res.filter(isWin);
+    const l    = res.filter(isLoss);
+    const p    = res.map(r => r.pnl != null ? r.pnl : (isLoss(r) ? -100 : null)).filter(v => v != null);
+    const np   = p.reduce((a,b)=>a+b, 0);
+    const wr   = res.length ? w.length/res.length*100 : null;
+    stTot += sigs.length; stW += w.length; stL += l.length; stPnl += np;
+    stratHtml += `<tr>
+      <td><span class="badge ${badge}">${label}</span></td>
+      <td style="text-align:right" class="mono">${sigs.length}</td>
+      <td style="text-align:right;color:var(--green)" class="mono">${w.length}</td>
+      <td style="text-align:right;color:var(--red)"   class="mono">${l.length}</td>
+      <td style="text-align:right;color:${wr==null?'var(--muted)':wr>=50?'var(--green)':'var(--red)'}">${wr!=null?fmtPct(wr):'—'}</td>
+      <td style="text-align:right;color:${colorFor(np)}" class="mono">${p.length ? fmt(np) : '—'}</td>
+    </tr>`;
+  }
+  const stWr = (stW+stL) ? stW/(stW+stL)*100 : null;
+  stratHtml += `<tr style="font-weight:600;border-top:1px solid var(--border)">
+    <td>Total</td>
+    <td style="text-align:right" class="mono">${stTot}</td>
+    <td style="text-align:right;color:var(--green)" class="mono">${stW}</td>
+    <td style="text-align:right;color:var(--red)"   class="mono">${stL}</td>
+    <td style="text-align:right;color:${stWr==null?'':stWr>=50?'var(--green)':'var(--red)'}">${stWr!=null?fmtPct(stWr):'—'}</td>
+    <td style="text-align:right;color:${colorFor(stPnl)}" class="mono">${fmt(stPnl)}</td>
+  </tr>`;
+  $('strat-tbody').innerHTML = stratHtml;
+
+  // ── Cumulative P&L chart (expired = -100 each) ───────────────────────────
+  const byTime = resolved
+    .map(r => ({ ...r, _pnl: r.pnl != null ? r.pnl : (isLoss(r) ? -100 : null), _t: r.exit_time || r.timestamp }))
+    .filter(r => r._pnl != null && r._t)
+    .sort((a,b) => a._t.localeCompare(b._t));
+  const cumPnl = []; let running = 0;
+  for (const r of byTime) { running += r._pnl; cumPnl.push({x: r._t.slice(0,10), y: +running.toFixed(2)}); }
+  updateLineChart('chart-pnl', chartPnl, cumPnl.map(p=>p.x), cumPnl.map(p=>p.y), 'Cumulative P&L %',
+    data => { chartPnl = data; return data; }, null);
+
+  // ── Weekly win-rate chart ─────────────────────────────────────────────────
+  const weekMap = {};
+  for (const r of resolved) {
+    const ref = r.exit_time || r.timestamp;
+    const wk  = weekLabel(ref);
+    if (!weekMap[wk]) weekMap[wk] = {wins:0, total:0};
+    weekMap[wk].total++;
+    if (isWin(r)) weekMap[wk].wins++;
+  }
+  const weeks    = Object.keys(weekMap).sort();
+  const weekData = weeks.map(w => weekMap[w].wins / weekMap[w].total * 100);
+  updateBarChart('chart-wr', chartWr, weeks, weekData, 'Win Rate %', d => { chartWr = d; });
+
+  // ── Daily signal count ────────────────────────────────────────────────────
+  const dayMap = {};
+  for (const r of records) {
+    const d = isoDate(r.timestamp);
+    if (!d) continue;
+    if (!dayMap[d]) dayMap[d] = 0;
+    dayMap[d]++;
+  }
+  const days    = Object.keys(dayMap).sort();
+  const dayData = days.map(d => dayMap[d]);
+  updateBarChart('chart-daily', chartDaily, days, dayData, 'Signals', d => { chartDaily = d; }, '#58a6ff');
+
+  // ── Fix attribution ───────────────────────────────────────────────────────
+  const postFix = records.filter(r => isoDate(r.timestamp) >= FIX_DATE);
+  const attrs = [
+    {name: '✅ TradeOdds confirmed',    sigs: postFix.filter(r => r.tradeodds_confirmed === true && !r.low_sample_fallback)},
+    {name: '⚠️ Thin-sample (new gate)', sigs: postFix.filter(r => r.low_sample_fallback)},
+    {name: '🔌 Outage fallback',        sigs: postFix.filter(r => r.tradeodds_confirmed === false && !r.low_sample_fallback)},
+    {name: '🪙 Crypto spot-tracked',    sigs: postFix.filter(r => (r.signal_type||'') === 'crypto_spot')},
+    {name: '⚡ 0DTE logged',            sigs: postFix.filter(r => (r.signal_type||'') === '0dte_option')},
+  ];
+  let attrHtml = '';
+  for (const a of attrs) {
+    const res = a.sigs.filter(isResolved);
+    const wi  = res.filter(isWin);
+    const wr  = res.length ? wi.length/res.length*100 : null;
+    attrHtml += `<div class="attr-card">
+      <div class="attr-name">${a.name}</div>
+      <div class="attr-count" style="color:${a.sigs.length > 0 ? 'var(--text)' : 'var(--muted)'}">${a.sigs.length}</div>
+      <div class="attr-sub">${res.length ? `${wi.length}W / ${res.length-wi.length}L · ${fmtPct(wr)}` : 'no closes yet'}</div>
+    </div>`;
+  }
+  $('attr-grid').innerHTML = attrHtml;
+
+  // ── BDB badge (dynamic) ───────────────────────────────────────────────────
+  try {
+    fetch('/logs/qvix_runtime.log?_=' + Date.now())
+      .then(r => r.text()).then(txt => {
+        const suspended = /BDB.SUSPENDED\s*=\s*True/i.test(txt) ||
+                          (txt.match(/BDB_SUSPENDED\s*=\s*(True|False)/i) || [])[1] === 'True';
+        const badge = $('bdb-badge');
+        if (suspended) {
+          badge.style.cssText = 'background:rgba(210,153,34,.18);color:var(--yellow);border:1px solid rgba(210,153,34,.4);border-radius:5px;padding:3px 10px;font-size:11px;font-weight:600;letter-spacing:.4px';
+          badge.textContent = '⚠ BDB SUSPENDED';
+          badge.style.display = '';
+        } else {
+          badge.style.display = 'none';
+        }
+      }).catch(() => {});
+  } catch(_) {}
+
+  // ── Render signal table (re-filtered) ─────────────────────────────────────
+  renderTable(records, rawCount);
+}
+
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+function chartDefaults() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false },
+               tooltip: { backgroundColor: '#1c2128', titleColor: '#e6edf3', bodyColor: '#8b949e',
+                           borderColor: '#30363d', borderWidth: 1 } },
+    scales: {
+      x: { ticks: { color: '#8b949e', maxTicksLimit: 6, maxRotation: 0 }, grid: { color: '#21262d' } },
+      y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } }
+    }
+  };
+}
+
+function updateLineChart(canvasId, instance, labels, data, label, setter, _unused) {
+  const ctx = $(canvasId).getContext('2d');
+  const color = data.length > 0 && data[data.length-1] >= 0 ? '#3fb950' : '#f85149';
+  if (!instance) {
+    setter(new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets: [{ label, data, borderColor: color, backgroundColor: 'transparent',
+               tension: .3, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2 }] },
+      options: { ...chartDefaults(), plugins: { ...chartDefaults().plugins } },
+    }));
+  } else {
+    instance.data.labels = labels;
+    instance.data.datasets[0].data = data;
+    instance.data.datasets[0].borderColor = color;
+    instance.update('none');
+  }
+}
+
+function updateBarChart(canvasId, instance, labels, data, label, setter, barColor) {
+  const ctx = $(canvasId).getContext('2d');
+  const colors = data.map(v => barColor || (v >= 50 ? 'rgba(63,185,80,.7)' : 'rgba(248,81,73,.7)'));
+  if (!instance) {
+    setter(new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ label, data, backgroundColor: colors, borderRadius: 4 }] },
+      options: chartDefaults(),
+    }));
+  } else {
+    instance.data.labels = labels;
+    instance.data.datasets[0].data = data;
+    instance.data.datasets[0].backgroundColor = colors;
+    instance.update('none');
+  }
+}
+
+// ── Filterable signal history table ──────────────────────────────────────────
+let _allRecords = [];
+let _rawCount   = 0;
+
+function renderTable(records, rawCount) {
+  _allRecords = records;
+  _rawCount   = rawCount || records.length;
+  applyFilters();
+}
+
+function applyFilters() {
+  const tk   = $('f-ticker').value.trim().toUpperCase();
+  const cls  = $('f-class').value;
+  const stat = $('f-status').value;
+  const from = $('f-from').value;
+  const to   = $('f-to').value;
+  const conf = $('f-conf').value;
+
+  let rows = [..._allRecords];
+  if (tk)   rows = rows.filter(r => r.ticker.includes(tk));
+  if (cls)  rows = rows.filter(r => (r.signal_type || 'stock_option') === cls);
+  if (stat) rows = rows.filter(r => (r.outcome || r.status) === stat);
+  if (from) rows = rows.filter(r => isoDate(r.timestamp) >= from);
+  if (to)   rows = rows.filter(r => isoDate(r.timestamp) <= to);
+  if (conf === 'confirmed') rows = rows.filter(r => r.tradeodds_confirmed === true && !r.low_sample_fallback);
+  if (conf === 'thin')      rows = rows.filter(r => r.low_sample_fallback);
+  if (conf === 'outage')    rows = rows.filter(r => r.tradeodds_confirmed === false && !r.low_sample_fallback);
+  if (conf === 'none')      rows = rows.filter(r => r.tradeodds_confirmed == null);
+
+  rows.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  let html = '';
+  for (const r of rows) {
+    const pnlColor = r.pnl == null ? '' : `style="color:${r.pnl>=0?'var(--green)':'var(--red)'}"`;
+    html += `<tr>
+      <td class="mono" style="font-size:12px">${tsLabel(r.timestamp)}</td>
+      <td><strong>${r.ticker}</strong></td>
+      <td style="color:var(--muted)">${r.signal}</td>
+      <td>${classBadge(r.signal_type || 'stock_option')}</td>
+      <td style="text-align:right" class="mono">${r.score}</td>
+      <td>${statusBadge(r)}</td>
+      <td style="text-align:right" class="mono">${r.entry_premium != null ? '$'+r.entry_premium.toFixed(2) : (r.price != null ? '$'+r.price : '—')}</td>
+      <td style="text-align:right" class="mono">${r.exit_price != null ? '$'+r.exit_price : '—'}</td>
+      <td style="text-align:right" class="mono" ${pnlColor}>${r.pnl != null ? fmt(r.pnl) : '—'}</td>
+      <td style="font-size:12px;color:var(--muted)">${confLabel(r)}</td>
+      <td style="font-size:12px;color:var(--muted)">${r.synthesis_verdict ? `<span style="font-weight:600;color:${r.synthesis_verdict==='BULLISH'?'var(--green)':r.synthesis_verdict==='BEARISH'?'var(--red)':'var(--muted)'}">${r.synthesis_verdict}</span>${r.synthesis_confidence!=null?' <span style="color:var(--muted)">'+r.synthesis_confidence+'%</span>':''}` : '—'}</td>
+    </tr>`;
+  }
+  $('hist-tbody').innerHTML = html;
+  const rawNote = _rawCount > _allRecords.length ? ` (${_rawCount} raw, ${_rawCount - _allRecords.length} dupes removed)` : '';
+  $('hist-count').textContent = `${rows.length} of ${_allRecords.length} unique signals${rawNote}`;
+}
+
+['f-ticker','f-class','f-status','f-from','f-to','f-conf'].forEach(id => {
+  $(id).addEventListener('input', applyFilters);
+  $(id).addEventListener('change', applyFilters);
+});
+
+// ── Radar panel ──────────────────────────────────────────────────────────────
+function fmtPrem(v) {
+  if (v == null || v === 0) return '—';
+  const m = Math.abs(v) / 1_000_000;
+  return (v >= 0 ? '+' : '−') + '$' + m.toFixed(1) + 'M';
+}
+
+function renderRadar(data) {
+  if (!data || !Array.isArray(data.tickers)) return;
+  if (data.timestamp) {
+    const ts = new Date(data.timestamp).toLocaleTimeString('en-US',
+      {hour:'2-digit', minute:'2-digit', hour12:true});
+    $('radar-updated').textContent = `updated ${ts} ET`;
+  }
+  if (!data.tickers.length) {
+    $('radar-tbody').innerHTML =
+      '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px">No unusual activity meeting threshold</td></tr>';
+    return;
+  }
+  let html = '';
+  for (const r of data.tickers) {
+    const rv      = r.rel_vol || 0;
+    const rvClass = rv >= 5 ? 'rv-5x' : rv >= 3 ? 'rv-3x' : 'rv-2x';
+    const isHot   = rv >= 3 && r.iv_rank >= 75;
+    const mvColor = r.pct_change >= 0 ? 'var(--green)' : 'var(--red)';
+    const prColor = r.net_premium >= 0 ? 'var(--green)' : 'var(--red)';
+    const bias    = r.sentiment === 'bullish' ? '🟢 BULL'
+                  : r.sentiment === 'bearish' ? '🔴 BEAR' : '⚪ NEUT';
+    html += `<tr class="${isHot ? 'radar-hot' : ''}">
+      <td><strong>${r.ticker}</strong></td>
+      <td style="text-align:right;color:${mvColor}" class="mono">${r.pct_change >= 0 ? '+' : ''}${r.pct_change.toFixed(1)}%</td>
+      <td style="text-align:right" class="mono ${rvClass}">${rv.toFixed(1)}×</td>
+      <td style="text-align:right" class="mono">${r.iv_rank.toFixed(0)}</td>
+      <td style="text-align:right;color:${prColor}" class="mono">${fmtPrem(r.net_premium)}</td>
+      <td style="font-size:12px">${bias}</td>
+    </tr>`;
+  }
+  $('radar-tbody').innerHTML = html;
+}
+
+// ── Data fetch + auto-refresh ─────────────────────────────────────────────────
+let countdown = REFRESH_SECS;
+
+async function refresh() {
+  try {
+    const [sigResp, radarResp] = await Promise.all([
+      fetch('/signal_log.json?_='       + Date.now()),
+      fetch('/unusual_activity.json?_=' + Date.now()),
+    ]);
+    if (!sigResp.ok) throw new Error(`HTTP ${sigResp.status}`);
+    const records = await sigResp.json();
+    render(records);
+    if (radarResp.ok) {
+      try { renderRadar(await radarResp.json()); } catch (_) {}
+    }
+    const now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:true});
+    $('dot').style.background = 'var(--green)';
+    countdown = REFRESH_SECS;
+    updateStatusText(now);
+  } catch (e) {
+    $('dot').style.background = 'var(--red)';
+    $('status-text').textContent = `Error: ${e.message}`;
+  }
+}
+
+function updateStatusText(lastUpdated) {
+  $('status-text').textContent = `Live · Last updated ${lastUpdated} · refreshes in ${countdown}s`;
+}
+
+// ── Health panel ─────────────────────────────────────────────────────────────
+const HEALTH_CATS = [
+  { key: 'creds',   label: 'Credentials'  },
+  { key: 'config',  label: 'Config Files' },
+  { key: 'process', label: 'Processes'    },
+  { key: 'api',     label: 'API Health'   },
+];
+const HEALTH_STALE_MS = 3 * 60 * 60 * 1000; // warn if > 3 hours old
+
+async function refreshHealth() {
+  try {
+    const resp = await fetch('/logs/health_status.json?_=' + Date.now());
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    // Timestamp + stale check
+    const ts = new Date(data.ts);
+    const ageMs = Date.now() - ts.getTime();
+    const timeStr = ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    document.getElementById('health-ts').textContent = `last check ${timeStr}`;
+    document.getElementById('health-stale').style.display = ageMs > HEALTH_STALE_MS ? '' : 'none';
+
+    // Overall badge
+    const worst = data.worst || 'ok';
+    const badgeEl = document.getElementById('health-badge');
+    const badgeMap = { ok: ['hbadge-ok', '✅ All clear'], warn: ['hbadge-warn', '⚠ Warnings'],
+                       error: ['hbadge-error', '🟠 Errors'], crit: ['hbadge-crit', '🔴 Critical'] };
+    badgeEl.className = `health-badge ${badgeMap[worst][0]}`;
+    badgeEl.textContent = badgeMap[worst][1];
+
+    // Group checks by category
+    const bycat = {};
+    for (const c of (data.checks || [])) bycat[c.category] = (bycat[c.category] || []).concat(c);
+
+    const dotClass = { ok: 'hd-ok', warn: 'hd-warn', error: 'hd-error', crit: 'hd-crit' };
+
+    let html = '';
+    for (const { key, label } of HEALTH_CATS) {
+      const checks = bycat[key] || [];
+      if (!checks.length) continue;
+      html += `<div class="health-col"><div class="health-col-title">${label}</div>`;
+      for (const c of checks) {
+        const dc = dotClass[c.level] || 'hd-ok';
+        const fixHtml = (c.fix && (c.level === 'error' || c.level === 'crit'))
+          ? `<div class="health-fix">→ ${c.fix}</div>` : '';
+        html += `<div class="health-row">
+          <div class="health-dot ${dc}"></div>
+          <div>
+            <div class="health-name">${c.name}</div>
+            <div class="health-detail">${c.detail}</div>
+            ${fixHtml}
+          </div>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+    document.getElementById('health-grid').innerHTML = html || '<div style="color:var(--muted);font-size:12px">No checks loaded.</div>';
+
+  } catch (e) {
+    document.getElementById('health-grid').innerHTML =
+      `<div style="color:var(--muted);font-size:12px;grid-column:1/-1">
+        Health data unavailable — run <code style="color:var(--blue)">python3 health.py</code> to generate.
+      </div>`;
+    document.getElementById('health-badge').className = 'health-badge hbadge-warn';
+    document.getElementById('health-badge').textContent = '? No data';
+  }
+}
+
+refreshHealth();
+
+refresh();
+setInterval(() => {
+  countdown--;
+  if (countdown <= 0) { refresh(); } else {
+    const parts = $('status-text').textContent.split(' · ');
+    if (parts.length >= 3) { parts[2] = `refreshes in ${countdown}s`; $('status-text').textContent = parts.join(' · '); }
+  }
+}, 1000);
+</script>
+</body>
+</html>
