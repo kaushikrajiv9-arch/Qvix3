@@ -13,11 +13,11 @@
       "milestones": [
         {"id": "business_plan",   "name": "Business plan complete",          "done": true,  "date": "2026-08-03"},
         {"id": "github_repo",     "name": "GitHub repo + SDK skeleton",       "done": true,  "date": "2026-08-05"},
-        {"id": "sdk_v1",          "name": "Python SDK v1 (logging layer)",    "done": false, "due": "2026-09-01"},
+        {"id": "sdk_v1",          "name": "Python SDK v1 (logging layer)",    "done": true,  "date": "2026-08-05"},
         {"id": "dashboard_v1",    "name": "Web dashboard v1",                 "done": false, "due": "2026-10-01"},
         {"id": "first_customer",  "name": "First paying customer",            "done": false, "due": "2026-11-01"}
       ],
-      "next_action": "Build SDK v1 logging layer — wire @agentlens.trace into a real LLM call with Anthropic SDK",
+      "next_action": "Build web dashboard v1 — live event feed, cost tracker, anomaly alert panel",
       "blockers": []
     },
     {
