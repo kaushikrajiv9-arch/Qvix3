@@ -1865,6 +1865,10 @@ def _check_signal_outcomes(
         except ValueError:
             continue
 
+        if expiry < date.today():
+            logging.warning(f"  Exit check: {ticker} {option_type} ${strike} [{expiry_s}] already expired — skipping")
+            continue
+
         try:
             contracts = fetch_option_chain(
                 ticker, option_type,
