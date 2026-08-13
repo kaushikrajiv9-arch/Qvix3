@@ -63,7 +63,7 @@ WATCHLIST = [
     "BTBT", "WULF", "APLD", "CORZ", "IREN",
 
     # Physical AI Infrastructure (CALL bias) — CORZ, IREN already listed above
-    "CEG", "VST", "BE", "CRWV",
+    "CEG", "VST", "BE", "CRWV", "NRG", "VRT", "ETN",
 
     # Semi Hedge (PUT bias) — AMD already listed above
     "SMH", "AVGO", "MU", "TSM",
@@ -96,7 +96,9 @@ TICKER_SECTOR: dict[str, str] = {
     # Financials (XLF)
     "COIN": "XLF", "HOOD": "XLF", "SOFI": "XLF", "MSTR": "XLF",
     # Utilities / Power Generation (XLU)
-    "CEG": "XLU", "VST": "XLU", "BE": "XLU",
+    "CEG": "XLU", "VST": "XLU", "BE": "XLU", "NRG": "XLU",
+    # Industrials — data center power & cooling infrastructure
+    "VRT": "XLI", "ETN": "XLI",
     # Energy (XLE)
     "USO": "XLE",
     # Basic Materials (XLB) — metals, mining, commodities
@@ -2698,7 +2700,9 @@ def _check_circuit_breaker() -> bool:
     records = _load_signal_log()
     todays_pnl = sum(
         r["pnl"] for r in records
-        if r.get("status") == "closed" and r.get("pnl") is not None and str(r.get("exit_time") or "").startswith(today)
+        if r.get("status") == "closed" and r.get("pnl") is not None
+        and str(r.get("exit_time") or "").startswith(today)
+        and (r.get("executed_liquid") or r.get("executed_robinhood"))
     )
 
     if -todays_pnl >= CIRCUIT_BREAKER_MAX_DAILY_LOSS_PCT:
