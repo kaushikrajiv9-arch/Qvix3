@@ -715,7 +715,13 @@ def _stock_tradeodds_confirms(direction: str, result: Optional[dict]) -> tuple:
     sample  = result.get("sample_size", 0)
     prob_up = result.get("probability_up", 50.0)
     prob_dn = result.get("probability_down", 50.0)
-    prob_match = prob_up if direction == "CALL" else prob_dn
+    # CALL: require prob_up >= 55% (stock likely to rise).
+    # PUT/bearish: require prob_up < 45% — absence of upward conviction.
+    # Using prob_up as the single reference metric in both branches keeps the
+    # note readable and avoids the prior confusion where prob_dn >= 55% and
+    # prob_up < 45% were treated as equivalent (they diverge when there is a
+    # neutral probability mass that doesn't sum to 100).
+    bearish_bar = 100.0 - STOCK_TRADEODDS_MIN_PROB  # 45.0 when min_prob = 55
 
     info = {
         "checked":          True,
@@ -733,14 +739,20 @@ def _stock_tradeodds_confirms(direction: str, result: Optional[dict]) -> tuple:
         info["note"] = f"⚠️ TradeOdds sample too small (n={sample}) — firing unconfirmed"
         return True, info
 
-    confirmed = prob_match >= STOCK_TRADEODDS_MIN_PROB
-    side = "up" if direction == "CALL" else "down"
+    if direction == "CALL":
+        confirmed = prob_up >= STOCK_TRADEODDS_MIN_PROB
+        info["note"] = (
+            f"TradeOdds (n={sample}): prob_up={prob_up:.1f}% "
+            f"{'>=' if confirmed else '<'} {STOCK_TRADEODDS_MIN_PROB:.0f}% threshold"
+        )
+    else:
+        confirmed = prob_up < bearish_bar
+        info["note"] = (
+            f"TradeOdds (n={sample}): prob_up={prob_up:.1f}% "
+            f"{'<' if confirmed else '>='} {bearish_bar:.0f}% bearish threshold"
+        )
     info["tradeodds_confirmed"] = confirmed
     info["outage_fallback"]     = False
-    info["note"] = (
-        f"TradeOdds (n={sample}): {prob_match:.1f}% probability {side} "
-        f"{'>=' if confirmed else '<'} {STOCK_TRADEODDS_MIN_PROB:.0f}% threshold"
-    )
     return confirmed, info
 
 
@@ -1854,6 +1866,8 @@ def _check_signal_outcomes(
             continue
 
         # ── Stock option resolution (default) — re-fetch Polygon premium ─────
+        if not (rec.get("executed_liquid") or rec.get("executed_robinhood")):
+            continue   # watchlist / manual-tracking signals — never auto-exit
         option_type   = rec.get("direction")
         strike        = rec.get("strike")
         expiry_s      = rec.get("expiry")
@@ -2369,7 +2383,7 @@ def _auto_register_manual_positions(positions: list) -> int:
 
         bid, ask = p.get("bid"), p.get("ask")
         avg      = p.get("avg_price") or 0
-        worthless = (bid is None and ask is None) or (bid == 0 and ask == 0)
+        worthless = bid is None or bid == 0  # bid=0 with ask>0 still expires worthless
 
         if worthless:
             record_status  = "closed"

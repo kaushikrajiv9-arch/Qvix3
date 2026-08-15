@@ -159,6 +159,7 @@ def check_config_files() -> List[Check]:
                         if r.get("status") == "closed"
                         and r.get("pnl") is not None
                         and str(r.get("exit_time") or "").startswith(today)
+                        and (r.get("executed_liquid") or r.get("executed_robinhood"))
                     )
                 except Exception:
                     pass
