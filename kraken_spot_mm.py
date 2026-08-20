@@ -55,7 +55,8 @@ SPOT_WS   = "wss://ws.kraken.com/v2"
 
 API_KEY     = os.getenv("KRAKEN_API_KEY", "")
 API_SECRET  = os.getenv("KRAKEN_API_SECRET", "")
-DISCORD_WH  = os.getenv("DISCORD_WEBHOOK_URL", "")
+from discord_format import get_discord_webhook_url
+DISCORD_WH  = get_discord_webhook_url()
 
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)

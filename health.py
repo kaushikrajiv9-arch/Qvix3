@@ -90,9 +90,9 @@ def check_credentials() -> List[Check]:
          "qvix.py cannot fetch any market data",
          "Add POLYGON_API_KEY=<key> to .env and restart")
 
-    _chk("DISCORD_WEBHOOK_URL",   "crit",  "Discord webhook",
+    _chk("DISCORD_WEBHOOK_ID",    "crit",  "Discord webhook",
          "no alerts or status reports can be posted",
-         "Add DISCORD_WEBHOOK_URL=<url> to .env and restart")
+         "Add DISCORD_WEBHOOK_ID=<id> to .env and token to ~/.qvix_discord_tokens.json")
 
     _chk("ROBINHOOD_ACCESS_TOKEN", "error", "Robinhood token",
          "BDB auto-execution silently disabled — signals fire on Discord but no RH orders placed",
@@ -582,7 +582,8 @@ def startup_validate(process_name: str = "QVIX") -> bool:
             logging.info(msg)
 
     if has_error:
-        webhook = os.getenv("DISCORD_WEBHOOK_URL", "")
+        from discord_format import get_discord_webhook_url
+        webhook = get_discord_webhook_url()
         if webhook:
             embed = format_discord_embed(checks)
             embed["title"] = f"⚙️ {process_name} startup — config issues found"
@@ -621,9 +622,10 @@ def main() -> None:
         print(format_terminal(checks))
 
     if args.discord:
-        webhook = os.getenv("DISCORD_WEBHOOK_URL", "")
+        from discord_format import get_discord_webhook_url
+        webhook = get_discord_webhook_url()
         if not webhook:
-            print("DISCORD_WEBHOOK_URL not set — cannot post embed", file=sys.stderr)
+            print("DISCORD_WEBHOOK_ID or ~/.qvix_discord_tokens.json not configured", file=sys.stderr)
         else:
             embed = format_discord_embed(checks)
             post_discord(embed, webhook)

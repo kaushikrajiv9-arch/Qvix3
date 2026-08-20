@@ -25,7 +25,8 @@ load_dotenv()
 BASE_DIR    = Path(__file__).parent
 TRACKER     = BASE_DIR / "business_tracker.json"
 STATUS_OUT  = BASE_DIR / "logs" / "business_status.json"
-DISCORD_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
+from discord_format import get_discord_webhook_url
+DISCORD_URL = get_discord_webhook_url()
 
 STATUS_COLOR = {"planning": 0x6366F1, "building": 0x06B6D4,
                 "launched": 0x10B981, "researching": 0xF59E0B, "paused": 0x94A3B8}
@@ -201,7 +202,7 @@ def main() -> None:
 
     if args.discord:
         if not DISCORD_URL:
-            print("DISCORD_WEBHOOK_URL not set.", file=sys.stderr)
+            print("Discord webhook not configured (DISCORD_WEBHOOK_ID or ~/.qvix_discord_tokens.json missing).", file=sys.stderr)
         else:
             post_discord(format_discord_embed(data))
             print("Discord embed posted.")

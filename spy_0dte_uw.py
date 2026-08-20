@@ -28,12 +28,12 @@ import requests
 from dotenv import load_dotenv
 from zoneinfo import ZoneInfo
 
-from discord_format import build_signal_embed
+from discord_format import build_signal_embed, get_discord_webhook_url
 
 load_dotenv()
 
 UNUSUAL_WHALES_API_KEY = os.getenv("UNUSUAL_WHALES_API_KEY", "")
-DISCORD_WEBHOOK_URL    = os.getenv("DISCORD_WEBHOOK_URL", "")
+DISCORD_WEBHOOK_URL    = get_discord_webhook_url()
 TRADEODDS_API_KEY      = os.getenv("TRADEODDS_API_KEY", "")
 
 ET = ZoneInfo("America/New_York")

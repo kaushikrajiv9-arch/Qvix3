@@ -28,7 +28,7 @@ import numpy as np
 import requests
 from dotenv import load_dotenv
 
-from discord_format import build_signal_embed
+from discord_format import build_signal_embed, get_discord_webhook_url
 
 load_dotenv()
 
@@ -41,8 +41,8 @@ _QVIX_MTIME = datetime.fromtimestamp(
 # ─── CONFIGURATION ─────────────────────────────────────────────────────────────
 
 POLYGON_API_KEY     = os.getenv("POLYGON_API_KEY", "")
-DISCORD_WEBHOOK_URL        = os.getenv("DISCORD_WEBHOOK_URL", "")
-DISCORD_CRYPTO_WEBHOOK_URL = os.getenv("DISCORD_CRYPTO_WEBHOOK_URL", "")
+DISCORD_WEBHOOK_URL        = get_discord_webhook_url("DISCORD_WEBHOOK_ID")
+DISCORD_CRYPTO_WEBHOOK_URL = get_discord_webhook_url("DISCORD_CRYPTO_WEBHOOK_ID")
 TRADEODDS_API_KEY   = os.getenv("TRADEODDS_API_KEY", "")
 ANTHROPIC_API_KEY      = os.getenv("ANTHROPIC_API_KEY", "")
 UNUSUAL_WHALES_API_KEY = os.getenv("UNUSUAL_WHALES_API_KEY", "")
@@ -5468,8 +5468,12 @@ def _acquire_lock():
             os.kill(pid, 0)   # raises ProcessLookupError if process is gone
             print(f"QVIX is already running (PID {pid}). Exiting.")
             sys.exit(1)
-        except (ValueError, ProcessLookupError):
-            # Stale lock (process died without cleanup). Remove and re-acquire.
+        except (ValueError, ProcessLookupError, PermissionError):
+            # Stale lock: process is gone (ProcessLookupError), PID was recycled
+            # by a root/system process we can't signal (PermissionError — since
+            # QVIX always runs as the same user, PermissionError unambiguously
+            # means the PID was reused by someone else), or the file is corrupt
+            # (ValueError). Remove and re-acquire.
             LOCK_FILE.unlink(missing_ok=True)
             _acquire_lock()
 
