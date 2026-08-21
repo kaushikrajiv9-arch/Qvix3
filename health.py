@@ -387,27 +387,46 @@ def check_api_health() -> List[Check]:
     else:
         results.append(Check("warn", "api", "TradeOdds", "key not set — skipping live check"))
 
-    # Robinhood token
+    # Robinhood token — check expiry from JWT before making a live request
     rh_token = os.getenv("ROBINHOOD_ACCESS_TOKEN", "")
     if rh_token:
         try:
-            r = _req.get(
-                "https://api.robinhood.com/user/",
-                headers={"Authorization": f"Bearer {rh_token}", "Accept": "application/json"},
-                timeout=8,
-            )
-            if r.status_code == 200:
-                results.append(Check("ok", "api", "Robinhood token", "valid, not expired"))
-            elif r.status_code == 401:
-                results.append(Check("error", "api", "Robinhood token",
-                                     "HTTP 401 — token expired (expires every ~24h)",
-                                     "Refresh: DevTools → Network → api.robinhood.com → "
-                                     "Authorization header → paste to .env ROBINHOOD_ACCESS_TOKEN"))
+            from rh_token_manager import token_hours_remaining
+            hours_left = token_hours_remaining(rh_token)
+            if hours_left >= 0 and hours_left < 8:
+                # Token expiring soon — try auto-refresh before declaring failure
+                from rh_token_manager import run_refresh
+                refreshed = run_refresh()
+                rh_token = os.getenv("ROBINHOOD_ACCESS_TOKEN", rh_token)
+                if refreshed:
+                    new_hours = token_hours_remaining(rh_token)
+                    results.append(Check("ok", "api", "Robinhood token",
+                                         f"auto-refreshed — {new_hours:.1f}h remaining"))
+                else:
+                    results.append(Check("error", "api", "Robinhood token",
+                                         f"expires in {hours_left:.1f}h and auto-refresh failed",
+                                         "Check ROBINHOOD_REFRESH_TOKEN in .env"))
+            elif hours_left < 0:
+                # Not a JWT or can't decode — fall back to live check
+                r = _req.get(
+                    "https://api.robinhood.com/user/",
+                    headers={"Authorization": f"Bearer {rh_token}", "Accept": "application/json"},
+                    timeout=8,
+                )
+                if r.status_code == 200:
+                    results.append(Check("ok", "api", "Robinhood token", "valid (non-JWT)"))
+                elif r.status_code == 401:
+                    results.append(Check("error", "api", "Robinhood token",
+                                         "HTTP 401 — expired; auto-refresh may fix this",
+                                         "Run: python3 rh_token_manager.py --force"))
+                else:
+                    results.append(Check("warn", "api", "Robinhood token",
+                                         f"unexpected HTTP {r.status_code}"))
             else:
-                results.append(Check("warn", "api", "Robinhood token",
-                                     f"unexpected HTTP {r.status_code}"))
+                results.append(Check("ok", "api", "Robinhood token",
+                                     f"valid — {hours_left:.1f}h remaining"))
         except Exception as exc:
-            results.append(Check("warn", "api", "Robinhood token", f"request failed: {exc}"))
+            results.append(Check("warn", "api", "Robinhood token", f"check failed: {exc}"))
     else:
         results.append(Check("warn", "api", "Robinhood token",
                              "not set — skipping live check"))
