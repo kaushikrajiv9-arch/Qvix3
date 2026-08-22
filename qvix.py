@@ -2230,20 +2230,33 @@ class _RobinhoodError(Exception):
 def _rh_get(url: str, params: Optional[dict] = None) -> Optional[dict]:
     """
     Single Robinhood API GET.
-    Raises _RobinhoodError on 401 (token expired — must surface to caller).
-    Returns None on other transient errors (connection timeout, 5xx, etc.) so
-    the caller can decide whether to skip or escalate.
+    Reads token fresh from env on every call. On 401, attempts one auto-refresh
+    via rh_token_manager and retries before raising _RobinhoodError.
+    Returns None on other transient errors so the caller can skip or escalate.
     """
-    try:
-        r = requests.get(
+    def _do_get():
+        load_dotenv(override=True)
+        token = os.getenv("ROBINHOOD_ACCESS_TOKEN", "")
+        return requests.get(
             url, params=params,
-            headers={"Authorization": f"Bearer {ROBINHOOD_ACCESS_TOKEN}", "Accept": "application/json"},
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
             timeout=10,
         )
+    try:
+        r = _do_get()
+        if r.status_code == 401:
+            # Try auto-refresh once before giving up.
+            try:
+                from rh_token_manager import run_refresh
+                refreshed = run_refresh(force=True)
+            except Exception:
+                refreshed = False
+            if refreshed:
+                r = _do_get()
         if r.status_code == 401:
             raise _RobinhoodError(
-                "Robinhood 401 — ROBINHOOD_ACCESS_TOKEN is expired. "
-                "Refresh it in .env and restart the daemon."
+                "Robinhood 401 — token expired and auto-refresh failed. "
+                "Run: python3 rh_token_manager.py --force"
             )
         r.raise_for_status()
         return r.json()
