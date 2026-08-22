@@ -284,7 +284,7 @@ class BalanceTracker:
         return self.usd >= usd_needed * 1.01   # 1% headroom
 
     def can_sell(self, asset_key: str, qty: float) -> bool:
-        return self.asset(asset_key) >= qty * 1.01
+        return self.asset(asset_key) >= qty
 
     def apply_fill(self, side: str, asset_key: str, qty: float, price: float, fee: float):
         cost = qty * price
@@ -448,6 +448,8 @@ class InstrumentMM:
                 txids = r.get("txids", [])
                 if txids:
                     self.bid_quote = ActiveQuote(txid=txids[0], side="buy", price=bid_p, qty=qty)
+                    # Reserve funds locally so concurrent pair quotes don't over-commit.
+                    self.balances._bal["ZUSD"] = self.balances.usd - bid_p * qty
             except ValueError as e:
                 if "post" in str(e).lower():
                     pass   # post-only rejection — price crossed spread, skip
@@ -872,6 +874,14 @@ class SpotMarketMaker:
         if self.balances.usd < 100:
             log.warning(f"USD balance ${self.balances.usd:.2f} is very low — "
                         "fund your Kraken account before running live")
+
+        # Cancel any stale open orders from prior sessions before quoting.
+        log.info("Cancelling stale open orders on startup...")
+        try:
+            self.api.cancel_all()
+            log.info("Stale orders cleared.")
+        except Exception as e:
+            log.warning(f"Startup cancel_all: {e}")
 
         _discord(
             f"✅ **Spot MM started**\n"
